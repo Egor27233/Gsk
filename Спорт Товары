@@ -1,0 +1,226 @@
+# Gsk
+Спорт товары 
+import tkinter as tk
+from tkinter import ttk, messagebox
+from datetime import datetime
+import hashlib
+
+# ================== ХЭШИ ЛОГИНА И ПАРОЛЯ ==================
+def hash_data(data: str) -> str:
+    return hashlib.sha256(data.encode()).hexdigest()
+
+CORRECT_LOGIN_HASH = hash_data("1")
+CORRECT_PASSWORD_HASH = hash_data("1111")
+
+# ================== ОКНО МАГАЗИНА ==================
+class SportShopApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("SportShop")
+        self.root.geometry("900x600")
+        self.root.configure(bg="#F4F6F7")
+
+        self.products = {
+            "Боксерские перчатки": 1500,
+            "Футбольный мяч": 2000,
+            "Теннисная ракетка": 3500,
+            "Гантели 5 кг": 1200,
+            "Коврик для йоги": 800,
+            "Скакалка": 300,
+            "Велосипед": 25000,
+            "Роликовые коньки": 4500
+        }
+
+        self.cart = []
+        self.create_widgets()
+
+    def create_widgets(self):
+        header = tk.Label(
+            self.root,
+            text="🏆 Магазин спортивного инвентаря",
+            font=("Segoe UI", 20, "bold"),
+            bg="#1F618D",
+            fg="white",
+            pady=15
+        )
+        header.pack(fill=tk.X)
+
+        main = tk.Frame(self.root, bg="#F4F6F7")
+        main.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
+
+        left = tk.LabelFrame(main, text="Товары", font=("Segoe UI", 12))
+        left.grid(row=0, column=0, sticky="nsew", padx=10)
+
+        right = tk.LabelFrame(main, text="Корзина", font=("Segoe UI", 12))
+        right.grid(row=0, column=1, sticky="nsew", padx=10)
+
+        for product, price in self.products.items():
+            f = tk.Frame(left)
+            f.pack(fill=tk.X, pady=4)
+
+            tk.Label(f, text=product, width=22, anchor="w").pack(side=tk.LEFT)
+            tk.Label(f, text=f"{price} ₽", width=10).pack(side=tk.LEFT)
+
+            tk.Button(
+                f,
+                text="➕ Добавить",
+                bg="#27AE60",
+                fg="white",
+                command=lambda p=product, pr=price: self.add_to_cart(p, pr)
+            ).pack(side=tk.RIGHT)
+
+        self.cart_tree = ttk.Treeview(right, columns=("p", "q", "t"), show="headings", height=10)
+        self.cart_tree.heading("p", text="Товар")
+        self.cart_tree.heading("q", text="Кол-во")
+        self.cart_tree.heading("t", text="Сумма")
+        self.cart_tree.pack(fill=tk.BOTH, expand=True)
+
+        self.total_label = tk.Label(right, text="Итого: 0 ₽", font=("Segoe UI", 14, "bold"))
+        self.total_label.pack(pady=10)
+
+        tk.Button(
+            right,
+            text="💳 Оформить заказ",
+            bg="#1F618D",
+            fg="white",
+            font=("Segoe UI", 12),
+            command=self.checkout
+        ).pack(fill=tk.X)
+
+        main.columnconfigure(0, weight=1)
+        main.columnconfigure(1, weight=1)
+
+    def add_to_cart(self, product, price):
+        for item in self.cart:
+            if item["product"] == product:
+                item["qty"] += 1
+                self.update_cart()
+                return
+
+        self.cart.append({"product": product, "price": price, "qty": 1})
+        self.update_cart()
+
+    def update_cart(self):
+        self.cart_tree.delete(*self.cart_tree.get_children())
+        total = 0
+
+        for item in self.cart:
+            s = item["price"] * item["qty"]
+            total += s
+            self.cart_tree.insert("", tk.END, values=(item["product"], item["qty"], f"{s} ₽"))
+
+        self.total_label.config(text=f"Итого: {total} ₽")
+
+    # ================== ДОСТАВКА ==================
+    def checkout(self):
+        if not self.cart:
+            messagebox.showwarning("Ошибка", "Корзина пуста")
+            return
+
+        delivery_window = tk.Toplevel(self.root)
+        delivery_window.title("Оформление доставки")
+        delivery_window.geometry("350x320")
+        delivery_window.resizable(False, False)
+
+        tk.Label(delivery_window, text="Способ доставки", font=("Segoe UI", 12, "bold")).pack(pady=10)
+
+        delivery_type = tk.StringVar(value="Самовывоз")
+
+        deliveries = {
+            "Самовывоз": 0,
+            "Курьер": 500,
+            "Почта": 300
+        }
+
+        for d, cost in deliveries.items():
+            tk.Radiobutton(
+                delivery_window,
+                text=f"{d} ({cost} ₽)",
+                variable=delivery_type,
+                value=d
+            ).pack(anchor="w", padx=20)
+
+        tk.Label(delivery_window, text="Адрес доставки").pack(pady=10)
+        address_entry = tk.Entry(delivery_window, width=35)
+        address_entry.pack()
+
+        def confirm_order():
+            address = address_entry.get().strip()
+            delivery_cost = deliveries[delivery_type.get()]
+
+            if delivery_type.get() != "Самовывоз" and not address:
+                messagebox.showerror("Ошибка", "Введите адрес доставки")
+                return
+
+            total = sum(i["price"] * i["qty"] for i in self.cart)
+            total_with_delivery = total + delivery_cost
+
+            receipt = "🧾 ЧЕК\n"
+            receipt += f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}\n\n"
+
+            for i in self.cart:
+                receipt += f"{i['product']} x{i['qty']} = {i['price'] * i['qty']} ₽\n"
+
+            receipt += f"\nДоставка: {delivery_type.get()} — {delivery_cost} ₽"
+
+            if address:
+                receipt += f"\nАдрес: {address}"
+
+            receipt += f"\n\nИТОГО: {total_with_delivery} ₽"
+
+            messagebox.showinfo("Заказ оформлен", receipt)
+            self.cart.clear()
+            self.update_cart()
+            delivery_window.destroy()
+
+        tk.Button(
+            delivery_window,
+            text="✅ Подтвердить заказ",
+            bg="#27AE60",
+            fg="white",
+            font=("Segoe UI", 11),
+            command=confirm_order
+        ).pack(pady=20)
+
+# ================== ОКНО ЛОГИНА ==================
+def open_shop():
+    login_window.destroy()
+    root = tk.Tk()
+    SportShopApp(root)
+    root.mainloop()
+
+def check_login():
+    login_hash = hash_data(entry_login.get())
+    password_hash = hash_data(entry_password.get())
+
+    if login_hash == CORRECT_LOGIN_HASH and password_hash == CORRECT_PASSWORD_HASH:
+        open_shop()
+    else:
+        messagebox.showerror("Ошибка", "Неверный логин или пароль")
+
+login_window = tk.Tk()
+login_window.title("Авторизация")
+login_window.geometry("320x220")
+login_window.resizable(False, False)
+login_window.configure(bg="#ECF0F1")
+
+tk.Label(login_window, text="Вход в систему", font=("Segoe UI", 16, "bold"), bg="#ECF0F1").pack(pady=10)
+
+tk.Label(login_window, text="Логин", bg="#ECF0F1").pack()
+entry_login = tk.Entry(login_window)
+entry_login.pack()
+
+tk.Label(login_window, text="Пароль", bg="#ECF0F1").pack(pady=5)
+entry_password = tk.Entry(login_window, show="*")
+entry_password.pack()
+
+tk.Button(
+    login_window,
+    text="Войти",
+    bg="#1F618D",
+    fg="white",
+    font=("Segoe UI", 11),
+    command=check_login
+).pack(pady=15)
+
+login_window.mainloop()
